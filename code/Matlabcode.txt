@@ -1,0 +1,97 @@
+% Generate synthetic EMG data for normal muscle state
+numSamples = 1000;
+time = linspace(0, 1, numSamples);
+
+% Set random seed for variation in each run
+rng('shuffle');
+
+% Generate synthetic EMG data for normal muscle state
+normalAmplitude = zeros(1, numSamples);
+
+% Generate MUAP waveforms
+numMUAPs = 10;
+muapDuration = 0.03;  % Duration of each MUAP waveform in seconds
+muapAmpRange = [0.1, 1];  % Range of MUAP amplitudes
+muapTimeRange = [0.01, 0.03];  % Time range for each MUAP waveform
+muapWidthRange = [0.005, 0.01];  % Width range for each MUAP waveform
+
+for i = 1:numMUAPs
+    muapAmplitude = (muapAmpRange(2) - muapAmpRange(1)) * rand() + muapAmpRange(1);
+    muapStartTime = (max(muapTimeRange) - min(muapTimeRange)) * rand() + min(muapTimeRange);
+    muapWidth = (muapWidthRange(2) - muapWidthRange(1)) * rand() + muapWidthRange(1);
+    
+    muap = muapAmplitude * exp(-(time - muapStartTime).^2 / (2 * muapWidth^2));
+    normalAmplitude = normalAmplitude + muap;
+end
+
+% Generate synthetic EMG data for fatigued muscle state
+fatiguedAmplitude = normalAmplitude .* (1 - exp(-time*8));
+
+% Add noise to the EMG signals
+noiseLevel = 0.1;
+normalAmplitude = normalAmplitude + randn(1, numSamples) * noiseLevel;
+fatiguedAmplitude = fatiguedAmplitude + randn(1, numSamples) * noiseLevel;
+
+% Apply median filtering
+normalFiltered = medianFilter(normalAmplitude, 5); % Median filter to remove noise
+fatigueFiltered = medianFilter(normalAmplitude, 15); % Median filter to preserve fatigue area
+
+% Find fatigued areas
+fatigueThreshold = 0.5; % Adjust this threshold as needed
+fatigueIndices = find(fatigueFiltered > fatigueThreshold);
+fatigueTimes = time(fatigueIndices);
+fatigueAmplitudes = fatigueFiltered(fatigueIndices);
+
+% Plot the EMG signals
+figure;
+subplot(2,2,1)
+plot(time, normalAmplitude)
+xlabel('Time')
+ylabel('Amplitude')
+title('EMG Signal - Normal Muscle State (Raw)')
+
+subplot(2,2,2)
+plot(time, normalFiltered)
+xlabel('Time')
+ylabel('Amplitude')
+title('EMG Signal - Normal Muscle State (Filtered)')
+
+subplot(2,2,3)
+plot(time, normalAmplitude)
+hold on
+plot(time, fatigueFiltered)
+xlabel('Time')
+ylabel('Amplitude')
+title('EMG Signal - Fatigue Area in Normal Muscle State')
+
+subplot(2,2,4)
+plot(time, fatiguedAmplitude)
+xlabel('Time')
+ylabel('Amplitude')
+title('EMG Signal - Fatigued Subject')
+
+% Create a zoomed-in plot of the fatigued areas
+figure;
+plot(time, normalAmplitude)
+hold on
+plot(time, fatigueFiltered)
+scatter(fatigueTimes, fatigueAmplitudes, 'r', 'filled')
+xlim([0.2, 0.5]) % Adjust the x-axis limits as needed
+ylim([min(normalAmplitude), max(normalAmplitude)]) % Adjust the y-axis limits as needed
+xlabel('Time')
+ylabel('Amplitude')
+title('Zoomed-In Plot - Fatigued Areas in Normal Muscle State')
+legend('Normal Muscle State', 'Fatigue Area', 'Fatigued Points')
+
+% Median filtering function
+function filteredSignal = medianFilter(signal, windowSize)
+    filteredSignal = zeros(size(signal));
+    halfWindowSize = floor(windowSize / 2);
+    
+    for i = 1:length(signal)
+        windowStart = max(1, i - halfWindowSize);
+        windowEnd = min(length(signal), i + halfWindowSize);
+        window = signal(windowStart:windowEnd);
+        filteredSignal(i) = median(window);
+    end
+end
